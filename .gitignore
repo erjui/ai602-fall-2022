@@ -203,3 +203,4 @@ cython_debug/
 *.pth
 .JPEG
 output_dir*/
+assets/*
