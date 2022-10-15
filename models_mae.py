@@ -27,7 +27,6 @@ class MaskedAutoencoderViT(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
         super().__init__()
-
         # --------------------------------------------------------------------------
         # MAE encoder specifics
         self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
@@ -153,13 +152,13 @@ class MaskedAutoencoderViT(nn.Module):
 
         # add pos embed w/o cls token
         # TODO: add pos embedding later
-        # x = x + self.pos_embed[:, 1:, :]
+        x = x # + self.pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
         # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
+        cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
 
@@ -221,6 +220,16 @@ class MaskedAutoencoderViT(nn.Module):
         return loss, pred, mask
 
 
+# junbong added this for ai602 project
+def mae_vit_base_patch4_dec512d8b(**kwargs):
+    model = MaskedAutoencoderViT(
+        img_size=64,
+        patch_size=4, embed_dim=768, depth=12, num_heads=12,
+        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
@@ -249,3 +258,4 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
 mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_vit_base_patch4 = mae_vit_base_patch4_dec512d8b  # decoder: 512 dim, 8 blocks
