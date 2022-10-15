@@ -23,6 +23,13 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 
 
 ## AI602 Project Instructions
+#### How to install using Docker
+- First, build docker image
+> sudo docker build -t ai602_mae:latest .
+- Then, run the following after changing {username} to your name 
+> sudo docker run -it --ipc=host --gpus device=0 -v /home/{username}/ai602-fall-2022:/home/docker/ai602-fall-2022 ai602_mae:latest
+
+
 #### How to download tiny ImageNet
 > wget http://cs231n.stanford.edu/tiny-imagenet-200.zip
 
