@@ -154,6 +154,7 @@ class MaskedAutoencoderViT(nn.Module):
         # TODO: add pos embedding later
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         x = x + self.pos_embed[:, 1:, :]
 =======
         x = x # + self.pos_embed[:, 1:, :]
@@ -161,11 +162,15 @@ class MaskedAutoencoderViT(nn.Module):
 =======
         x = x # + self.pos_embed[:, 1:, :]
 >>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
+=======
+        x = x # + self.pos_embed[:, 1:, :]
+>>>>>>> refs/remotes/origin/main
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
         # append cls token
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
         cls_token = self.cls_token  + self.pos_embed[:, :1, :]
@@ -175,6 +180,9 @@ class MaskedAutoencoderViT(nn.Module):
 =======
         cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
 >>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
+=======
+        cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
+>>>>>>> refs/remotes/origin/main
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
 

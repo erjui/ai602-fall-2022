@@ -34,11 +34,15 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 > wget http://cs231n.stanford.edu/tiny-imagenet-200.zip
 
 #### How to Pretrain
+<<<<<<< HEAD
+> python main_pretrain.py --batch_size 64 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path assets/tiny-imagenet-200
+=======
 > python main_pretrain.py --batch_size 64 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path assets/tiny-imagenet-200 | tee log.txt
 
 #### How to Pretrain in multi-gpu setting
 > set CUDA_VISIBLE_DEVICES=0,1,2,3 \
 > python -m torch.distributed.launch --nproc_per_node=4 main_pretrain.py --batch_size 16 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path /d1/seongjae/ai602/data/tiny-imagenet-200 | tee log.txt
+>>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
 
 #### How to remove positional embedding
 - Remove *self.pos_embed* in forward_encoder() in models_mae.py
