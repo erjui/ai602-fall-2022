@@ -34,7 +34,7 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 > wget http://cs231n.stanford.edu/tiny-imagenet-200.zip
 
 #### How to Pretrain
-> python main_pretrain.py --batch_size 64 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path assets/tiny-imagenet-200 | tee log.txt
+> python main_pretrain.py --batch_size 64 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path assets/tiny-imagenet-200
 
 #### How to Pretrain in multi-gpu setting
 > set CUDA_VISIBLE_DEVICES=0,1,2,3 \

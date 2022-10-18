@@ -153,7 +153,11 @@ class MaskedAutoencoderViT(nn.Module):
         # add pos embed w/o cls token
         # TODO: add pos embedding later
 <<<<<<< HEAD
+<<<<<<< HEAD
         x = x + self.pos_embed[:, 1:, :]
+=======
+        x = x # + self.pos_embed[:, 1:, :]
+>>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
 =======
         x = x # + self.pos_embed[:, 1:, :]
 >>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
@@ -163,7 +167,11 @@ class MaskedAutoencoderViT(nn.Module):
 
         # append cls token
 <<<<<<< HEAD
+<<<<<<< HEAD
         cls_token = self.cls_token  + self.pos_embed[:, :1, :]
+=======
+        cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
+>>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
 =======
         cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
 >>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
