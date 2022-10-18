@@ -152,13 +152,21 @@ class MaskedAutoencoderViT(nn.Module):
 
         # add pos embed w/o cls token
         # TODO: add pos embedding later
+<<<<<<< HEAD
         x = x + self.pos_embed[:, 1:, :]
+=======
+        x = x # + self.pos_embed[:, 1:, :]
+>>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
         # append cls token
+<<<<<<< HEAD
         cls_token = self.cls_token  + self.pos_embed[:, :1, :]
+=======
+        cls_token = self.cls_token  # + self.pos_embed[:, :1, :]
+>>>>>>> af8f7d78142daa10988eef39590b33a34ede2f31
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
 
