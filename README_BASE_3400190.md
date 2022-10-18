@@ -21,30 +21,6 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 
 * This repo is based on [`timm==0.3.2`](https://github.com/rwightman/pytorch-image-models), for which a [fix](https://github.com/rwightman/pytorch-image-models/issues/420#issuecomment-776459842) is needed to work with PyTorch 1.8.1+.
 
-
-## AI602 Project Instructions
-#### How to install using Docker
-- First, build docker image
-> sudo docker build -t ai602_mae:latest .
-- Then, run the following after changing {username} to your name 
-> sudo docker run -it --ipc=host --gpus device=0 -v /home/{username}/ai602-fall-2022:/home/docker/ai602-fall-2022 ai602_mae:latest
-
-
-#### How to download tiny ImageNet
-> wget http://cs231n.stanford.edu/tiny-imagenet-200.zip
-
-#### How to Pretrain
-> python main_pretrain.py --batch_size 64 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path assets/tiny-imagenet-200 | tee log.txt
-
-#### How to Pretrain in multi-gpu setting
-> set CUDA_VISIBLE_DEVICES=0,1,2,3 \
-> python -m torch.distributed.launch --nproc_per_node=4 main_pretrain.py --batch_size 16 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path /d1/seongjae/ai602/data/tiny-imagenet-200 | tee log.txt
-
-#### How to remove positional embedding
-- Remove *self.pos_embed* in forward_encoder() in models_mae.py
-
----
-
 ### Catalog
 
 - [x] Visualization demo
@@ -174,7 +150,6 @@ By fine-tuning these pre-trained models, we rank #1 in these classification task
 ### Pre-training
 
 The pre-training instruction is in [PRETRAIN.md](PRETRAIN.md).
-
 
 ### License
 
