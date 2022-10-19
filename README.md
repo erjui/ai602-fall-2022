@@ -43,6 +43,9 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 #### How to finetune
 > python main_finetune.py --finetune pretrained_vit/checkpoint-200.pth --batch_size 32 --model vit_base_patch4 --epochs 50 --blr 1e-3 --layer_decay 0.75 --weight_decay 0.05 --drop_path 0.2 --reprob 0.25 --mixup 0.8 --cutmix 1.0 --dist_eval --data_path assets/tiny-imagenet-200
 
+#### How to evaluate
+> python main_finetune.py --eval --resume finetuned_vit_pos_tinyImagenet/checkpoint-49.pth --model vit_base_patch4 --batch_size 16 --data_path assets/tiny-imagenet-200
+
 #### How to remove positional embedding
 - Remove *self.pos_embed* in forward_encoder() in models_mae.py
 
