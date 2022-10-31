@@ -13,11 +13,14 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from timm.models.vision_transformer import PatchEmbed, Block
 
 from util.pos_embed import get_2d_sincos_pos_embed
 
+import einops
+from einops import rearrange
 
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
@@ -55,6 +58,20 @@ class MaskedAutoencoderViT(nn.Module):
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size**2 * in_chans, bias=True) # decoder to patch
+        # --------------------------------------------------------------------------
+
+        # --------------------------------------------------------------------------
+        # MAE jigsaw specifics
+        jigsaw_hidden_dim = embed_dim * 2
+        self.jigsaw_embed = nn.Sequential(
+            nn.Linear(embed_dim, jigsaw_hidden_dim),
+            nn.BatchNorm1d(jigsaw_hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(jigsaw_hidden_dim, jigsaw_hidden_dim),
+            nn.BatchNorm1d(jigsaw_hidden_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(jigsaw_hidden_dim, img_size//patch_size * img_size//patch_size),
+        )
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -113,7 +130,7 @@ class MaskedAutoencoderViT(nn.Module):
         p = self.patch_embed.patch_size[0]
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
-        
+
         x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
         x = torch.einsum('nhwpqc->nchpwq', x)
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
@@ -127,9 +144,9 @@ class MaskedAutoencoderViT(nn.Module):
         """
         N, L, D = x.shape  # batch, length, dim
         len_keep = int(L * (1 - mask_ratio))
-        
+
         noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
-        
+
         # sort noise for each sample
         ids_shuffle = torch.argsort(noise, dim=1)  # ascend: small is keep, large is remove
         ids_restore = torch.argsort(ids_shuffle, dim=1)
@@ -152,13 +169,13 @@ class MaskedAutoencoderViT(nn.Module):
 
         # add pos embed w/o cls token
         # TODO: add pos embedding later
-        x = x + self.pos_embed[:, 1:, :]
+        x = x # + self.pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
 
         # append cls token
-        cls_token = self.cls_token + self.pos_embed[:, :1, :]
+        cls_token = self.cls_token # + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
 
@@ -195,12 +212,29 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
-    def forward_loss(self, imgs, pred, mask):
+    def forward_jigsaw(self, x, ids_restore):
+        # embed patches
+        b, n, c = x.shape
+
+        x = rearrange(x, 'b n c -> (b n) c')
+        x = self.jigsaw_embed(x)
+        x = rearrange(x, '(b n) c -> b n c', b=b)
+
+        x = x[:, 1:, :]  # remove cls token
+        target_ids = ids_restore[:, :x.shape[1]]
+
+        return x, target_ids
+
+    def forward_loss(self, imgs, pred, mask, pred_j, target_j):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
-        mask: [N, L], 0 is keep, 1 is remove, 
+        mask: [N, L], 0 is keep, 1 is remove,
         """
+        pred_j = rearrange(pred_j, 'b n c -> (b n) c')
+        target_j = rearrange(target_j, 'b n -> (b n)')
+        loss_j = F.cross_entropy(pred_j, target_j)
+
         target = self.patchify(imgs)
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
@@ -211,12 +245,16 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+
+        loss = loss + loss_j # sum original reconstruction loss & jigsaw loss
+
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
-        loss = self.forward_loss(imgs, pred, mask)
+        pred_j, target_j = self.forward_jigsaw(latent, ids_restore)  # [N, L, p*p*3]
+        loss = self.forward_loss(imgs, pred, mask, pred_j, target_j)
         return loss, pred, mask
 
 
