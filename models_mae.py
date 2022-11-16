@@ -233,7 +233,7 @@ class MaskedAutoencoderViT(nn.Module):
         """
         pred_j = rearrange(pred_j, 'b n c -> (b n) c')
         target_j = rearrange(target_j, 'b n -> (b n)')
-        loss_j = F.cross_entropy(pred_j, target_j)
+        jigsaw_loss = F.cross_entropy(pred_j, target_j)
 
         target = self.patchify(imgs)
         if self.norm_pix_loss:
@@ -244,18 +244,19 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        mae_loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
 
-        loss = loss + loss_j # sum original reconstruction loss & jigsaw loss
+        total_loss = mae_loss + jigsaw_loss # sum original reconstruction loss & jigsaw loss
 
-        return loss
+        return total_loss, mae_loss, jigsaw_loss
 
     def forward(self, imgs, mask_ratio=0.75):
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         pred_j, target_j = self.forward_jigsaw(latent, ids_restore)  # [N, L, p*p*3]
-        loss = self.forward_loss(imgs, pred, mask, pred_j, target_j)
-        return loss, pred, mask
+        total_loss, mae_loss, jigsaw_loss = self.forward_loss(imgs, pred, mask, pred_j, target_j)
+        
+        return total_loss, mae_loss, jigsaw_loss, pred, mask
 
 
 # junbong added this for ai602 project

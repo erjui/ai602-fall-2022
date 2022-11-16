@@ -45,10 +45,11 @@ def train_one_epoch(model: torch.nn.Module,
         samples = samples.to(device, non_blocking=True)
 
         with torch.cuda.amp.autocast():
-            loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
+            loss, mae_loss, jigsaw_loss, _, _ = model(samples, mask_ratio=args.mask_ratio)
 
         loss_value = loss.item()
-
+        mae_loss_value = mae_loss.item()
+        jigsaw_loss_value = jigsaw_loss.item()
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
             sys.exit(1)
@@ -61,7 +62,9 @@ def train_one_epoch(model: torch.nn.Module,
 
         torch.cuda.synchronize()
 
-        metric_logger.update(loss=loss_value)
+        metric_logger.update(total_loss=loss_value)
+        metric_logger.update(mae_loss=mae_loss_value)
+        metric_logger.update(jigsaw_loss=jigsaw_loss_value)
 
         lr = optimizer.param_groups[0]["lr"]
         metric_logger.update(lr=lr)
@@ -72,7 +75,9 @@ def train_one_epoch(model: torch.nn.Module,
             This calibrates different curves when batch size changes.
             """
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
-            log_writer.add_scalar('train_loss', loss_value_reduce, epoch_1000x)
+            log_writer.add_scalar('train_total_loss', loss_value_reduce, epoch_1000x)
+            log_writer.add_scalar('train_mae_loss', mae_loss_value, epoch_1000x)
+            log_writer.add_scalar('train_jigsaw_loss', jigsaw_loss_value, epoch_1000x)
             log_writer.add_scalar('lr', lr, epoch_1000x)
 
 

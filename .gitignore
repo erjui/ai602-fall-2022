@@ -204,3 +204,5 @@ cython_debug/
 .JPEG
 output_dir*/
 assets/*
+pretraine*/*
+finetune*/*
