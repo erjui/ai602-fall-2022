@@ -28,7 +28,7 @@ class MaskedAutoencoderViT(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_chans=3,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
+                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False, mask_ratio=0.75):
         super().__init__()
         # --------------------------------------------------------------------------
         # MAE encoder specifics
@@ -61,6 +61,8 @@ class MaskedAutoencoderViT(nn.Module):
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
+        self.mask_ratio = mask_ratio
+
         # MAE jigsaw specifics
         jigsaw_hidden_dim = embed_dim * 2
         self.jigsaw_embed = nn.Sequential(
@@ -70,8 +72,9 @@ class MaskedAutoencoderViT(nn.Module):
             nn.Linear(jigsaw_hidden_dim, jigsaw_hidden_dim),
             nn.BatchNorm1d(jigsaw_hidden_dim),
             nn.ReLU(inplace=True),
-            nn.Linear(jigsaw_hidden_dim, img_size//patch_size * img_size//patch_size),
+            nn.Linear(jigsaw_hidden_dim, int( (1-mask_ratio) * img_size//patch_size * img_size//patch_size) ),
         )
+
         # --------------------------------------------------------------------------
 
         self.norm_pix_loss = norm_pix_loss
@@ -136,14 +139,14 @@ class MaskedAutoencoderViT(nn.Module):
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
         return imgs
 
-    def random_masking(self, x, mask_ratio):
+    def random_masking(self, x):
         """
         Perform per-sample random masking by per-sample shuffling.
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
         """
-        N, L, D = x.shape  # batch, length, dim
-        len_keep = int(L * (1 - mask_ratio))
+        N, L, D = x.shape  # batch, patch_num, dim
+        len_keep = int(L * (1 - self.mask_ratio))
 
         noise = torch.rand(N, L, device=x.device)  # noise in [0, 1]
 
@@ -163,16 +166,16 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x_masked, mask, ids_restore
 
-    def forward_encoder(self, x, mask_ratio):
+    def forward_encoder(self, x):
         # embed patches
-        x = self.patch_embed(x) # 1 x 196 x 1024
+        x = self.patch_embed(x) # [64, 3, 64, 64] --> [64, 256, 768]   # BCHW -> B, Number of patches(N), C
 
         # add pos embed w/o cls token
         # TODO: add pos embedding later
         x = x # + self.pos_embed[:, 1:, :]
 
         # masking: length -> length * mask_ratio
-        x, mask, ids_restore = self.random_masking(x, mask_ratio)
+        x, mask, ids_restore = self.random_masking(x)  # x.shape = B, number of unmasked patches, C; mask.shape = ids_restore.shape = BN
 
         # append cls token
         cls_token = self.cls_token # + self.pos_embed[:, :1, :]
@@ -213,27 +216,47 @@ class MaskedAutoencoderViT(nn.Module):
         return x
 
     def forward_jigsaw(self, x, ids_restore):
+        '''
+
+        Returns: x: shape is (b n c) e.g. ([64, 64, 256])
+                 target_ids: shape is (b n) e.g. ([64, 64])
+                 There are 256 possible locations, but only 64 visible patches
+        '''
         # embed patches
         b, n, c = x.shape
 
         x = rearrange(x, 'b n c -> (b n) c')
-        x = self.jigsaw_embed(x)
-        x = rearrange(x, '(b n) c -> b n c', b=b)
+        pred_vectors = self.jigsaw_embed(x)
 
-        x = x[:, 1:, :]  # remove cls token
-        target_ids = ids_restore[:, :x.shape[1]]
+        pred_vectors = rearrange(pred_vectors, '(b n) c -> b n c', b=b)
+        pred_vectors = pred_vectors[:, 1:, :]  # remove cls token
+        target_ids = ids_restore[:, :pred_vectors.shape[1]]  # shape (batch_size, visible_patch_num)
 
-        return x, target_ids
+        return pred_vectors, target_ids
 
-    def forward_loss(self, imgs, pred, mask, pred_j, target_j):
+    def forward_loss(self, imgs, pred, mask, orig_pred_j, orig_target_j):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
         mask: [N, L], 0 is keep, 1 is remove,
+
+        orig_pred_j: [Batch_size, visible_patch_num, probability vector of visible patches])
+        orig_target_j: [Batch_size, visible_patch_num])
         """
-        pred_j = rearrange(pred_j, 'b n c -> (b n) c')
-        target_j = rearrange(target_j, 'b n -> (b n)')
-        jigsaw_loss = F.cross_entropy(pred_j, target_j)
+        # ------------- prev absolute jigsaw -------------
+        # pred_j = rearrange(orig_pred_j, 'b n c -> (b n) c')
+        # target_j = rearrange(orig_target_j, 'b n -> (b n)')
+        # jigsaw_loss = F.cross_entropy(pred_j, target_j)
+
+        # ------------- new relative jigsaw --------------
+        relative_target_j = torch.argsort(orig_target_j, dim=-1)
+        jigsaw_loss = F.cross_entropy(orig_pred_j, relative_target_j) # (64, 4, 4), (64, 4)
+
+        # pred_j = rearrange(orig_pred_j, 'b n c -> (b n) c')
+        # target_j = rearrange(relative_target_j, 'b n -> (b n)')
+        # jigsaw_loss1 = F.cross_entropy(pred_j, target_j) # (256, 4), (256)
+
+        # --------------------------------------------------
 
         target = self.patchify(imgs)
         if self.norm_pix_loss:
@@ -245,13 +268,13 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         mae_loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
-
         total_loss = mae_loss + jigsaw_loss # sum original reconstruction loss & jigsaw loss
 
         return total_loss, mae_loss, jigsaw_loss
 
-    def forward(self, imgs, mask_ratio=0.75):
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
+    def forward(self, imgs):
+        latent, mask, ids_restore = self.forward_encoder(imgs)
+
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         pred_j, target_j = self.forward_jigsaw(latent, ids_restore)  # [N, L, p*p*3]
         total_loss, mae_loss, jigsaw_loss = self.forward_loss(imgs, pred, mask, pred_j, target_j)
@@ -259,8 +282,8 @@ class MaskedAutoencoderViT(nn.Module):
         return total_loss, mae_loss, jigsaw_loss, pred, mask
 
 
-# junbong added this for ai602 project
-def mae_vit_base_patch4_dec512d8b(**kwargs):
+# --------------------- added this for ai602 project ---------------------------
+def mae_vit_base_patch4_img64_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
         img_size=64,
         patch_size=4, embed_dim=768, depth=12, num_heads=12,
@@ -268,33 +291,44 @@ def mae_vit_base_patch4_dec512d8b(**kwargs):
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
-
-def mae_vit_base_patch16_dec512d8b(**kwargs):
+def mae_vit_base_patch16_img64_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
+        img_size=64,
         patch_size=16, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
     return model
 
+mae_vit_base_patch16 = mae_vit_base_patch16_img64_dec512d8b  # decoder: 512 dim, 8 blocks
+mae_vit_base_patch4 = mae_vit_base_patch4_img64_dec512d8b  # decoder: 512 dim, 8 blocks
+# -------------------------------------------------------------------------
 
-def mae_vit_large_patch16_dec512d8b(**kwargs):
-    model = MaskedAutoencoderViT(
-        patch_size=16, embed_dim=1024, depth=24, num_heads=16,
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
+# def mae_vit_base_patch16_dec512d8b(**kwargs):
+#     model = MaskedAutoencoderViT(
+#         patch_size=16, embed_dim=768, depth=12, num_heads=12,
+#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
+#
+#
+# def mae_vit_large_patch16_dec512d8b(**kwargs):
+#     model = MaskedAutoencoderViT(
+#         patch_size=16, embed_dim=1024, depth=24, num_heads=16,
+#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
+#
+#
+# def mae_vit_huge_patch14_dec512d8b(**kwargs):
+#     model = MaskedAutoencoderViT(
+#         patch_size=14, embed_dim=1280, depth=32, num_heads=16,
+#         decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+#         mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
+#
+#
+# # set recommended archs
+# mae_vit_base_patch16_dec512d8b = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+# mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+# mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
 
-
-def mae_vit_huge_patch14_dec512d8b(**kwargs):
-    model = MaskedAutoencoderViT(
-        patch_size=14, embed_dim=1280, depth=32, num_heads=16,
-        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
-
-
-# set recommended archs
-mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks
-mae_vit_base_patch4 = mae_vit_base_patch4_dec512d8b  # decoder: 512 dim, 8 blocks

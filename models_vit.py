@@ -53,6 +53,14 @@ class VisionTransformer(timm.models.vision_transformer.VisionTransformer):
         return outcome
 
 
+
+def vit_base_patch16(**kwargs):
+    model = VisionTransformer(
+        patch_size=16, img_size=64, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
 def vit_base_patch4(**kwargs):
     model = VisionTransformer(
         patch_size=4, img_size=64, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
@@ -60,22 +68,22 @@ def vit_base_patch4(**kwargs):
     return model
 
 
-def vit_base_patch16(**kwargs):
-    model = VisionTransformer(
-        patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
-
-
-def vit_large_patch16(**kwargs):
-    model = VisionTransformer(
-        patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
-
-
-def vit_huge_patch14(**kwargs):
-    model = VisionTransformer(
-        patch_size=14, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4, qkv_bias=True,
-        norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
-    return model
+# def vit_base_patch16(**kwargs):
+#     model = VisionTransformer(
+#         patch_size=16, embed_dim=768, depth=12, num_heads=12, mlp_ratio=4, qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
+#
+#
+# def vit_large_patch16(**kwargs):
+#     model = VisionTransformer(
+#         patch_size=16, embed_dim=1024, depth=24, num_heads=16, mlp_ratio=4, qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
+#
+#
+# def vit_huge_patch14(**kwargs):
+#     model = VisionTransformer(
+#         patch_size=14, embed_dim=1280, depth=32, num_heads=16, mlp_ratio=4, qkv_bias=True,
+#         norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+#     return model
