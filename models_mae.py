@@ -250,11 +250,11 @@ class MaskedAutoencoderViT(nn.Module):
 
         # ------------- new relative jigsaw --------------
         relative_target_j = torch.argsort(orig_target_j, dim=-1)
-        jigsaw_loss = F.cross_entropy(orig_pred_j, relative_target_j) # (64, 4, 4), (64, 4)
+        # jigsaw_loss = F.cross_entropy(orig_pred_j, relative_target_j) # (64, 4, 4), (64, 4)
 
-        # pred_j = rearrange(orig_pred_j, 'b n c -> (b n) c')
-        # target_j = rearrange(relative_target_j, 'b n -> (b n)')
-        # jigsaw_loss1 = F.cross_entropy(pred_j, target_j) # (256, 4), (256)
+        pred_j = rearrange(orig_pred_j, 'b n c -> (b n) c')
+        target_j = rearrange(relative_target_j, 'b n -> (b n)')
+        jigsaw_loss = F.cross_entropy(pred_j, target_j)  # (256, 4), (256)
 
         # --------------------------------------------------
 
