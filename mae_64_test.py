@@ -109,16 +109,16 @@ def show_image(image, title=''):
     plt.axis('off')
     return
 
-def prepare_model(chkpt_dir, arch='mae_vit_large_patch16'):
+def prepare_model(chkpt_dir, arch):
     # build model
     model = getattr(models_mae, arch)()
     # load model
     checkpoint = torch.load(chkpt_dir, map_location='cpu')
-    msg = model.load_state_dict(checkpoint['model'], strict=True)
+    msg = model.load_state_dict(checkpoint['model'], strict=False)
     print(msg)
     return model
 
-def run_one_image(img, model, idx):
+def run_one_image(img, model, idx, save_folder_path):
     x = torch.tensor(img)
 
     # make it a batch-like
@@ -126,7 +126,7 @@ def run_one_image(img, model, idx):
     x = torch.einsum('nhwc->nchw', x)
 
     # run MAE
-    loss, y, mask = model(x.float(), mask_ratio=0.75)
+    total_loss, mae_loss, jigsaw_loss, y, mask = model(x.float())
     y = model.unpatchify(y)
     y = torch.einsum('nchw->nhwc', y).detach().cpu()
 
@@ -160,12 +160,13 @@ def run_one_image(img, model, idx):
     show_image(im_paste[0], "reconstruction + visible")
 
     # plt.show()
-    plt.savefig(f'out_{idx}.png')
+    plt.savefig(f'{save_folder_path}/out_{idx}.png', bbox_inches="tight", pad_inches=0, dpi=300)
 
-# chkpt_dir = 'mae_visualize_vit_large.pth'
-chkpt_dir = 'with_pos.pth' # TODO: get new checkpoint
-# model = prepare_model(chkpt_dir, 'mae_vit_large_patch16')
-model = prepare_model(chkpt_dir, 'mae_vit_base_patch4')
+# --------------------------------------------------
+chkpt_folder = 'pretrained_patch16_jigsaw'
+chkpt_file = 'checkpoint-200.pth'
+model = prepare_model(f"{chkpt_folder}/{chkpt_file}", 'mae_vit_base_patch16')
+# --------------------------------------------------
 print(model)
 print('Model loaded.')
 
@@ -180,13 +181,17 @@ import requests
 # img = Image.open(requests.get(img_url, stream=True).raw)
 
 imgs = [
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/train/n01443537/images/n01443537_2.JPEG',
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/train/n01774384/images/n01774384_12.JPEG',
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/train/n03937543/images/n03937543_17.JPEG',
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/train/n04596742/images/n04596742_100.JPEG',
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/train/n07753592/images/n07753592_10.JPEG',
-    '/d1/seongjae/ai602/data/tiny-imagenet-200/val/images/val_1083.JPEG',
+    'assets/tiny-imagenet-200/train/n01443537/images/n01443537_2.JPEG',
+    'assets/tiny-imagenet-200/train/n01774384/images/n01774384_12.JPEG',
+    'assets/tiny-imagenet-200/train/n03937543/images/n03937543_17.JPEG',
+    'assets/tiny-imagenet-200/train/n04596742/images/n04596742_100.JPEG',
+    'assets/tiny-imagenet-200/train/n07753592/images/n07753592_10.JPEG',
+    'assets/tiny-imagenet-200/val/n01882714/val_1083.JPEG',
 ]
+
+save_folder_path = f'generated/{chkpt_folder}_{chkpt_file}/'
+if not os.path.isdir(save_folder_path):
+    os.makedirs(save_folder_path)
 
 for i, img in enumerate(imgs):
     img = Image.open(img)
@@ -206,4 +211,4 @@ for i, img in enumerate(imgs):
     # make random mask reproducible (comment out to make it change)
     torch.manual_seed(2)
     print('MAE with pixel reconstruction:')
-    run_one_image(img, model, i)
+    run_one_image(img, model, i, save_folder_path)

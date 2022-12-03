@@ -40,6 +40,9 @@ This is a PyTorch/GPU re-implementation of the paper [Masked Autoencoders Are Sc
 > set CUDA_VISIBLE_DEVICES=0,1,2,3 \
 > python -m torch.distributed.launch --nproc_per_node=4 main_pretrain.py --batch_size 16 --model mae_vit_base_patch4 --norm_pix_loss --mask_ratio 0.75 --epochs 400 --warmup_epochs 40 --blr 1.5e-4 --weight_decay 0.05 --data_path /d1/seongjae/ai602/data/tiny-imagenet-200
 
+#### How to reconstruct images from pretrained model
+> python mae_64_test.py
+
 #### How to finetune
 > python main_finetune.py --finetune pretrained_vit/checkpoint-200.pth --batch_size 32 --model vit_base_patch4 --epochs 50 --blr 1e-3 --layer_decay 0.75 --weight_decay 0.05 --drop_path 0.2 --reprob 0.25 --mixup 0.8 --cutmix 1.0 --dist_eval --data_path assets/tiny-imagenet-200
 
