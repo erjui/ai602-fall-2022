@@ -13,6 +13,9 @@ import math
 import sys
 from typing import Iterable, Optional
 
+import matplotlib.pyplot as plt
+from sklearn.manifold import TSNE
+
 import torch
 
 from timm.data import Mixup
@@ -128,3 +131,29 @@ def evaluate(data_loader, model, device):
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+  
+@torch.no_grad()
+def evaluate_tsne(data_loader,model,device):
+    tsne=TSNE(learning_rate=100)
+
+    metric_logger = misc.MetricLogger(delimiter="  ")
+    header = 'Test:'
+    fig,ax=plt.subplots(1,1,figsize=(5,5))
+    # switch to evaluation mode
+    model.eval()
+
+    for batch in metric_logger.log_every(data_loader, 10, header):
+        images = batch[0]
+        target = batch[-1]
+        images,traget=images.to(device),target.to(device)
+        # compute output
+        output = model(images)
+        output=output.cpu()
+        target=target.cpu()
+        output_tsne=tsne.fit_transform(output)
+        plt.scatter(output_tsne[:,0],output_tsne[:,1],label=target)
+
+    plt.show()
+    # gather the stats from all processes
+
+    return 0
