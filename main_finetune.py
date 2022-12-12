@@ -36,7 +36,7 @@ from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models_vit
 
-from engine_finetune import train_one_epoch, evaluate
+from engine_finetune import train_one_epoch, evaluate, evaluate_tsne
 
 
 def get_args_parser():
@@ -342,6 +342,8 @@ def main(args):
                 log_writer.flush()
             with open(os.path.join(args.output_dir, "log.txt"), mode="a", encoding="utf-8") as f:
                 f.write(json.dumps(log_stats) + "\n")
+        if epoch == args.epochs-1:
+            evaluate_tsne(data_loader_val,model,device)
 
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
