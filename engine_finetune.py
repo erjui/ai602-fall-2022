@@ -131,7 +131,7 @@ def evaluate(data_loader, model, device):
           .format(top1=metric_logger.acc1, top5=metric_logger.acc5, losses=metric_logger.loss))
 
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
-  
+####TSNE demonstrate code###
 @torch.no_grad()
 def evaluate_tsne(data_loader,model,device):
     tsne=TSNE(learning_rate=100)
@@ -151,7 +151,7 @@ def evaluate_tsne(data_loader,model,device):
         output=output.cpu()
         target=target.cpu()
         output_tsne=tsne.fit_transform(output)
-        plt.scatter(output_tsne[:,0],output_tsne[:,1],label=target)
+        plt.scatter(output_tsne[::10,0],output_tsne[::10,1],label=target[::10])
 
     plt.show()
     # gather the stats from all processes
